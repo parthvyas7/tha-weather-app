@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { CiSearch } from "react-icons/ci";
 import "./styles/weather-dashboard.styles.css";
+import Loader from "./components/Loader";
 
 const apiKey = import.meta.env.VITE_OPENWEATHER_API_KEY;
 type WeatherData = {
@@ -25,6 +26,8 @@ export default function WeatherDashboard() {
   const [weather, setWeather] = useState<WeatherData | null>(null);
   const [searchHistory, setSearchHistory] = useState<string[]>([]);
   const [isCelsius, setIsCelsius] = useState(true);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     const savedHistory = localStorage.getItem("searchHistory");
@@ -38,54 +41,76 @@ export default function WeatherDashboard() {
     }
   }, []);
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (city.trim() === "") return;
 
-    const mockWeatherData: WeatherData = {
+    setPending(true);
+    const currentWeatherData = await fetch(
+      `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${apiKey}`
+    )
+      .then((res) => res.json())
+      .catch((err) => {
+        console.log(err);
+        setError("Error: City not found or Network error");
+        setPending(false);
+      });
+
+    const forecastWeatherData = await fetch(
+      `https://api.openweathermap.org/data/2.5/forecast?q=${city}&units=metric&appid=${apiKey}`
+    )
+      .then((res) => res.json())
+      .catch((err) => {
+        console.log(err);
+        setError("Error: City not found or Network error");
+        setPending(false);
+      });
+
+    const WeatherData: WeatherData = {
       city: city,
       current: {
-        temperature: 20,
-        description: "Partly cloudy",
-        icon: "02d",
-        windSpeed: 5.5,
-        humidity: 65,
+        temperature: currentWeatherData.main.temp,
+        description: currentWeatherData.weather[0].description,
+        icon: currentWeatherData.weather[0].icon,
+        windSpeed: currentWeatherData.wind.speed,
+        humidity: currentWeatherData.main.humidity,
       },
       forecast: [
         {
-          date: "2023-05-01",
-          temperature: 22,
-          description: "Sunny",
-          icon: "01d",
+          date: forecastWeatherData.list[0].dt_txt,
+          temperature: forecastWeatherData.list[0].main.temp,
+          description: forecastWeatherData.list[0].weather[0].description,
+          icon: forecastWeatherData.list[0].weather[0].icon,
         },
         {
-          date: "2023-05-02",
-          temperature: 21,
-          description: "Partly cloudy",
-          icon: "02d",
+          date: forecastWeatherData.list[8].dt_txt,
+          temperature: forecastWeatherData.list[8].main.temp,
+          description: forecastWeatherData.list[8].weather[0].description,
+          icon: forecastWeatherData.list[8].weather[0].icon,
         },
         {
-          date: "2023-05-03",
-          temperature: 19,
-          description: "Rainy",
-          icon: "10d",
+          date: forecastWeatherData.list[16].dt_txt,
+          temperature: forecastWeatherData.list[16].main.temp,
+          description: forecastWeatherData.list[16].weather[0].description,
+          icon: forecastWeatherData.list[16].weather[0].icon,
         },
         {
-          date: "2023-05-04",
-          temperature: 18,
-          description: "Cloudy",
-          icon: "03d",
+          date: forecastWeatherData.list[24].dt_txt,
+          temperature: forecastWeatherData.list[24].main.temp,
+          description: forecastWeatherData.list[24].weather[0].description,
+          icon: forecastWeatherData.list[24].weather[0].icon,
         },
         {
-          date: "2023-05-05",
-          temperature: 20,
-          description: "Partly cloudy",
-          icon: "02d",
+          date: forecastWeatherData.list[32].dt_txt,
+          temperature: forecastWeatherData.list[32].main.temp,
+          description: forecastWeatherData.list[32].weather[0].description,
+          icon: forecastWeatherData.list[32].weather[0].icon,
         },
       ],
     };
 
-    setWeather(mockWeatherData);
+    setWeather(WeatherData);
+    setPending(false);
 
     const updatedHistory = [
       city,
@@ -93,7 +118,7 @@ export default function WeatherDashboard() {
     ].slice(0, 5);
     setSearchHistory(updatedHistory);
 
-    localStorage.setItem("weatherData", JSON.stringify(mockWeatherData));
+    localStorage.setItem("weatherData", JSON.stringify(WeatherData));
     localStorage.setItem("searchHistory", JSON.stringify(updatedHistory));
 
     setCity("");
@@ -124,6 +149,7 @@ export default function WeatherDashboard() {
             <CiSearch className="search-icon" />
           </button>
         </form>
+        {error && <p className="error">{error}</p>}
         <div className="temperature-toggle">
           <button
             className={isCelsius ? "active" : ""}
@@ -138,54 +164,58 @@ export default function WeatherDashboard() {
             °F
           </button>
         </div>
-        {weather && (
-          <div className="weather-display">
-            <h2 className="city-name">{weather.city}</h2>
-            <div className="current-weather">
-              <img
-                src={getWeatherIcon(weather.current.icon)}
-                alt={weather.current.description}
-                className="weather-icon"
-              />
-              <div className="weather-info">
-                <span className="temperature">
-                  {convertTemperature(weather.current.temperature).toFixed(1)}°
-                  {isCelsius ? "C" : "F"}
-                </span>
-                <span className="description">
-                  {weather.current.description}
-                </span>
-              </div>
-            </div>
-            <div className="weather-details">
-              <div className="weather-detail-item">
-                <h3>Wind Speed</h3>
-                <p>{weather.current.windSpeed} m/s</p>
-              </div>
-              <div className="weather-detail-item">
-                <h3>Humidity</h3>
-                <p>{weather.current.humidity}%</p>
-              </div>
-            </div>
-            <h3 className="forecast-title">5-Day Forecast</h3>
-            <div className="forecast">
-              {weather.forecast.map((day, index) => (
-                <div key={index} className="forecast-item">
-                  <p className="forecast-date">{day.date}</p>
-                  <img
-                    src={getWeatherIcon(day.icon)}
-                    alt={day.description}
-                    className="forecast-icon"
-                  />
-                  <p className="forecast-temp">
-                    {convertTemperature(day.temperature).toFixed(1)}°
-                    {isCelsius ? "C" : "F"}
-                  </p>
-                  <p className="forecast-desc">{day.description}</p>
+        {pending ? (
+          <Loader />
+        ) : (
+          weather && (
+            <div className="weather-display">
+              <h2 className="city-name">{weather.city}</h2>
+              <div className="current-weather">
+                <img
+                  src={getWeatherIcon(weather.current.icon)}
+                  alt={weather.current.description}
+                  className="weather-icon"
+                />
+                <div className="weather-info">
+                  <span className="temperature">
+                    {convertTemperature(weather.current.temperature).toFixed(1)}
+                    °{isCelsius ? "C" : "F"}
+                  </span>
+                  <span className="description">
+                    {weather.current.description}
+                  </span>
                 </div>
-              ))}
+              </div>
+              <div className="weather-details">
+                <div className="weather-detail-item">
+                  <h3>Wind Speed</h3>
+                  <p>{weather.current.windSpeed} m/s</p>
+                </div>
+                <div className="weather-detail-item">
+                  <h3>Humidity</h3>
+                  <p>{weather.current.humidity}%</p>
+                </div>
+              </div>
+              <h3 className="forecast-title">5-Day Forecast</h3>
+              <div className="forecast">
+                {weather.forecast.map((day, index) => (
+                  <div key={index} className="forecast-item">
+                    <p className="forecast-date">{day.date}</p>
+                    <img
+                      src={getWeatherIcon(day.icon)}
+                      alt={day.description}
+                      className="forecast-icon"
+                    />
+                    <p className="forecast-temp">
+                      {convertTemperature(day.temperature).toFixed(1)}°
+                      {isCelsius ? "C" : "F"}
+                    </p>
+                    <p className="forecast-desc">{day.description}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          )
         )}
         <div className="search-history">
           <h3>Search History</h3>
